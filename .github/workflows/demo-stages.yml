@@ -1,0 +1,187 @@
+# The whole session, as one runnable workflow.
+#
+# Run it from the Actions tab and it executes all three stages against the
+# same repository, side by side, and prints a comparison in the job summary.
+#
+#   Stage 1  a copied script      — green, even when the repo fails
+#   Stage 2  a composite action   — fails, but only tells you a number
+#   Stage 3  the shared action    — fails, and tells you what and why
+#
+# Tip for presenting: run it once on 'bad' before the session starts, so the
+# finished run is ready to show without waiting for a runner.
+
+name: Demo — the three stages
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Which sample repository to check.
+        type: choice
+        required: true
+        default: bad
+        options: [bad, good]
+
+permissions:
+  contents: read
+
+jobs:
+  stage-1:
+    name: Stage 1 — a script someone copied
+    runs-on: ubuntu-latest
+    outputs:
+      exit-code: ${{ steps.run.outputs.exit-code }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # No inputs: the required files are hard-coded, so every team that
+      # needs something different keeps its own copy. And no exit code:
+      # this step cannot fail, whatever the script found.
+      - name: Run check-repo.ps1
+        id: run
+        shell: bash
+        working-directory: sample-repos/${{ inputs.repository }}
+        run: |
+          set +e
+          pwsh -NoProfile -File "$GITHUB_WORKSPACE/stages/01-script/check-repo.ps1"
+          code=$?
+          set -e
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Stage 1::The script exited with $code. This job is green regardless of what it found."
+
+  stage-2:
+    name: Stage 2 — the same script, with a contract
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.check.outcome }}
+      result: ${{ steps.check.outputs.result }}
+      total: ${{ steps.check.outputs.checks-total }}
+      failed: ${{ steps.check.outputs.checks-failed }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Inputs, outputs and a real exit code. continue-on-error is here so
+      # the demo can keep going and report on the failure.
+      - name: Run the composite action
+        id: check
+        continue-on-error: true
+        uses: ./stages/02-composite
+        with:
+          path: sample-repos/${{ inputs.repository }}
+          required-files: README.md,LICENSE,.gitignore
+          required-readme-sections: Usage
+
+      - name: What a caller can learn from this
+        shell: pwsh
+        env:
+          RESULT: ${{ steps.check.outputs.result }}
+          FAILED: ${{ steps.check.outputs.checks-failed }}
+        run: |
+          # A count, and nothing else. 'checks-failed=2' does not tell you
+          # WHICH two, so nothing downstream can act on it.
+          Write-Host "result=$env:RESULT, checks-failed=$env:FAILED"
+
+  stage-3:
+    name: Stage 3 — the shared action
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.check.outcome }}
+      result: ${{ steps.check.outputs.result }}
+      total: ${{ steps.check.outputs.checks-total }}
+      failed: ${{ steps.check.outputs.checks-failed }}
+      report: ${{ steps.check.outputs.report-json }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the shared action
+        id: check
+        continue-on-error: true
+        uses: ./
+        with:
+          path: sample-repos/${{ inputs.repository }}
+          required-files: |
+            README.md
+            LICENSE
+            .gitignore
+          required-readme-sections: |
+            Usage
+          forbidden-patterns: |
+            *.pfx
+            *.pem
+          report-path: reports/standards.json
+
+      # Structured output is the difference between a gate and a tool.
+      - name: Build something with the result
+        shell: pwsh
+        env:
+          REPORT: ${{ steps.check.outputs.report-json }}
+        run: |
+          $report = $env:REPORT | ConvertFrom-Json
+          foreach ($check in $report.Checks | Where-Object { -not $_.Passed }) {
+            Write-Host "would open an issue for: [$($check.Category)] $($check.Name) — $($check.Message)"
+          }
+
+      - name: Upload the JSON report
+        uses: actions/upload-artifact@v4
+        with:
+          name: standards-report
+          path: reports/standards.json
+          if-no-files-found: warn
+
+  compare:
+    name: The comparison
+    needs: [stage-1, stage-2, stage-3]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write the summary
+        shell: pwsh
+        env:
+          SAMPLE: ${{ inputs.repository }}
+          S1_EXIT: ${{ needs.stage-1.outputs.exit-code }}
+          S2_OUTCOME: ${{ needs.stage-2.outputs.outcome }}
+          S2_FAILED: ${{ needs.stage-2.outputs.failed }}
+          S2_TOTAL: ${{ needs.stage-2.outputs.total }}
+          S3_OUTCOME: ${{ needs.stage-3.outputs.outcome }}
+          S3_FAILED: ${{ needs.stage-3.outputs.failed }}
+          S3_TOTAL: ${{ needs.stage-3.outputs.total }}
+          S3_REPORT: ${{ needs.stage-3.outputs.report }}
+        run: |
+          $lines = [System.Collections.Generic.List[string]]::new()
+          $lines.Add("## Three stages, one repository (``sample-repos/$env:SAMPLE``)")
+          $lines.Add('')
+          $lines.Add('| | Stage 1: script | Stage 2: composite | Stage 3: shared action |')
+          $lines.Add('| --- | --- | --- | --- |')
+          $lines.Add("| Step result | exit $env:S1_EXIT — always success | $env:S2_OUTCOME | $env:S3_OUTCOME |")
+          $lines.Add("| Checks reported | not machine readable | $env:S2_FAILED of $env:S2_TOTAL failed | $env:S3_FAILED of $env:S3_TOTAL failed |")
+          $lines.Add('| Configurable | ❌ hard-coded | ✅ inputs | ✅ inputs |')
+          $lines.Add('| Says which checks failed | ❌ | ❌ a count only | ✅ structured JSON |')
+          $lines.Add('| Job summary | ❌ | ❌ | ✅ |')
+          $lines.Add('| Unit tested | ❌ | ❌ | ✅ |')
+          $lines.Add('| Shareable as | copy/paste | `@main` | `@v1` |')
+          $lines.Add('')
+
+          if ($env:S1_EXIT -eq '0' -and $env:S3_OUTCOME -eq 'failure') {
+            $lines.Add('> **The moment that lands:** Stage 1 and Stage 3 looked at the same')
+            $lines.Add('> repository. Stage 1 left the pipeline green. Stage 3 failed it, said')
+            $lines.Add('> exactly why, and handed a caller the result as data.')
+            $lines.Add('')
+          }
+
+          if ($env:S3_REPORT) {
+            $report = $env:S3_REPORT | ConvertFrom-Json
+            $failed = @($report.Checks | Where-Object { -not $_.Passed })
+            if ($failed.Count -gt 0) {
+              $lines.Add('### What Stage 3 found')
+              $lines.Add('')
+              foreach ($check in $failed) {
+                $lines.Add("- ``$($check.Category)`` **$($check.Name)** — $($check.Message)")
+              }
+            }
+          }
+
+          ($lines -join "`n") | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

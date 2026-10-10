@@ -64,6 +64,29 @@ improvement — and still untestable, unversioned and pinned to `@main`.
 Logic separated from plumbing, 33 tests, cross-platform CI, job summaries,
 safe input handling and a release process that moves `v1`.
 
+### Seeing all three side by side
+
+Run the **Demo — the three stages** workflow
+([`demo-stages.yml`](.github/workflows/demo-stages.yml)) and pick `bad` as the
+repository. It runs all three stages against the same sample repository and
+writes the comparison to the job summary:
+
+| Stage | Exit code | Pipeline | What the caller gets |
+| --- | :---: | :---: | --- |
+| Stage 1 | `0` | ✅ green | nothing machine-readable |
+| Stage 2 | `1` | ❌ red | `checks-failed=2` — a count, not the reasons |
+| Stage 3 | `1` | ❌ red | every failing check, named, as JSON |
+
+Same repository. Stage 1 kept the pipeline green.
+
+Without a runner, the same demo runs on your laptop:
+
+```powershell
+./scripts/Invoke-StageDemo.ps1              # against sample-repos/bad
+./scripts/Invoke-StageDemo.ps1 -Sample good # all three stages pass
+./scripts/Invoke-StageDemo.ps1 -Stage 2     # one stage at a time
+```
+
 ---
 
 ## Usage
@@ -164,6 +187,9 @@ Invoke-Pester -Path ./tests -Output Detailed
 # See it pass, then see it fail
 ./scripts/Invoke-RepoStandardsCheck.ps1 -Path sample-repos/good -RequiredFile "README.md,LICENSE"
 ./scripts/Invoke-RepoStandardsCheck.ps1 -Path sample-repos/bad  -RequiredFile "README.md,LICENSE"
+
+# Walk all three stages over the same repository
+./scripts/Invoke-StageDemo.ps1
 ```
 
 Requires PowerShell 7+ and Pester 5+.
@@ -175,6 +201,7 @@ Requires PowerShell 7+ and Pester 5+.
 ```
 action.yml                    The contract consumers depend on
 scripts/                      Entry point: inputs, outputs, exit code
+scripts/Invoke-StageDemo.ps1  Walks all three stages, offline
 src/RepoStandards/            Pure logic, no GitHub knowledge
 tests/                        Unit tests + action contract tests
 stages/01-script/             Where we start
@@ -182,7 +209,7 @@ stages/02-composite/          The intermediate step
 sample-repos/good|bad         Fixtures that pass and fail on purpose
 examples/                     What consumers write
 docs/                         The three design topics
-.github/workflows/            CI, action tests, release
+.github/workflows/            CI, action tests, release, stage demo
 ```
 
 The split between `src/` and `scripts/` is the single change that makes

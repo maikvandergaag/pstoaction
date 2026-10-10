@@ -1,0 +1,114 @@
+# Stage 3 proof #3: a version consumers can trust.
+#
+# Tests run BEFORE the moving tags are repointed. Moving v1 onto untested
+# code ships a bug instantly to everyone who took your advice to use @v1.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to (re)publish, for example v1.2.0.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify before releasing
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      major: ${{ steps.version.outputs.major }}
+      minor: ${{ steps.version.outputs.minor }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Resolve the version
+        id: version
+        shell: pwsh
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ($env:RAW_TAG -notmatch '^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$') {
+            throw "Tag '$env:RAW_TAG' is not a vMAJOR.MINOR.PATCH release tag."
+          }
+
+          "tag=$env:RAW_TAG"                      | Add-Content $env:GITHUB_OUTPUT
+          "major=v$($Matches.major)"              | Add-Content $env:GITHUB_OUTPUT
+          "minor=v$($Matches.major).$($Matches.minor)" | Add-Content $env:GITHUB_OUTPUT
+
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Run the test suite
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+      - name: Check the action against this repository
+        uses: ./
+        with:
+          required-files: |
+            README.md
+            LICENSE
+            action.yml
+
+  publish:
+    name: Move the tags
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+          fetch-depth: 0
+
+      # v1.2.0 never moves. v1.2 and v1 are repointed at it, so a consumer
+      # on @v1 picks up compatible fixes without editing a workflow.
+      - name: Repoint the moving tags
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+          MAJOR: ${{ needs.verify.outputs.major }}
+          MINOR: ${{ needs.verify.outputs.minor }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          for moving in "$MAJOR" "$MINOR"; do
+            git tag -f -a "$moving" -m "Moving tag for $TAG"
+            git push -f origin "refs/tags/$moving"
+            echo "$moving -> $TAG"
+          done
+
+      - name: Summarise
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+          MAJOR: ${{ needs.verify.outputs.major }}
+          MINOR: ${{ needs.verify.outputs.minor }}
+        run: |
+          {
+            echo "## 🏷️ Released \`$TAG\`"
+            echo
+            echo "| Tag | Points at | Moves again? |"
+            echo "| --- | --- | --- |"
+            echo "| \`$TAG\` | this commit | never |"
+            echo "| \`$MINOR\` | \`$TAG\` | on the next patch |"
+            echo "| \`$MAJOR\` | \`$TAG\` | on every compatible release |"
+          } >> "$GITHUB_STEP_SUMMARY"
