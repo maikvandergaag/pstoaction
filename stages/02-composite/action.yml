@@ -1,0 +1,43 @@
+name: Repo Standards Check (stage 2)
+description: Checks a repository for required files and README sections.
+
+inputs:
+  path:
+    description: Path to the repository to check.
+    required: false
+    default: .
+  required-files:
+    description: Comma-separated list of files that must exist.
+    required: false
+    default: README.md,LICENSE,.gitignore
+  required-readme-sections:
+    description: Comma-separated list of headings that must exist in README.md.
+    required: false
+    default: ''
+  fail-on-error:
+    description: Fail the step when a check fails.
+    required: false
+    default: 'true'
+
+outputs:
+  result:
+    description: '"passed" or "failed".'
+    value: ${{ steps.check.outputs.result }}
+  checks-total:
+    description: Number of checks that ran.
+    value: ${{ steps.check.outputs.checks-total }}
+  checks-failed:
+    description: Number of checks that failed.
+    value: ${{ steps.check.outputs.checks-failed }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: pwsh
+      run: |
+        ${{ github.action_path }}/check-repo.ps1 `
+          -Path '${{ inputs.path }}' `
+          -RequiredFiles '${{ inputs.required-files }}' `
+          -RequiredReadmeSections '${{ inputs.required-readme-sections }}' `
+          -FailOnError $${{ inputs.fail-on-error }}

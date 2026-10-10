@@ -1,0 +1,103 @@
+name: Repo Standards Check
+description: >-
+  Validates that a repository contains the files, README sections and
+  conventions your organisation expects.
+author: your-org
+
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  path:
+    description: Path to the repository to check, relative to the workspace.
+    required: false
+    default: .
+
+  required-files:
+    description: |
+      Files that must exist, one per line (commas also work).
+      Lines starting with # are ignored.
+    required: false
+    default: |
+      README.md
+      LICENSE
+      .gitignore
+
+  required-readme-sections:
+    description: |
+      Headings that must exist in README.md, one per line.
+      Matching is case-insensitive and accepts any heading level.
+    required: false
+    default: ''
+
+  forbidden-patterns:
+    description: |
+      File name patterns that must not exist anywhere in the repository,
+      one per line. For example *.pfx or *.pem.
+    required: false
+    default: ''
+
+  fail-on-error:
+    description: Fail the step when one or more checks fail. 'true' or 'false'.
+    required: false
+    default: 'true'
+
+  job-summary:
+    description: Write a Markdown report to the job summary. 'true' or 'false'.
+    required: false
+    default: 'true'
+
+  report-path:
+    description: >-
+      Optional path to write the full result as JSON. Useful for uploading
+      as an artifact or feeding another tool.
+    required: false
+    default: ''
+
+outputs:
+  result:
+    description: Overall result, either 'passed' or 'failed'.
+    value: ${{ steps.check.outputs.result }}
+  checks-total:
+    description: Total number of checks that ran.
+    value: ${{ steps.check.outputs.checks-total }}
+  checks-passed:
+    description: Number of checks that passed.
+    value: ${{ steps.check.outputs.checks-passed }}
+  checks-failed:
+    description: Number of checks that failed.
+    value: ${{ steps.check.outputs.checks-failed }}
+  report-json:
+    description: The full result as a JSON document.
+    value: ${{ steps.check.outputs.report-json }}
+  report-path:
+    description: Path of the JSON report, when report-path was supplied.
+    value: ${{ steps.check.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run repository standards check
+      id: check
+      shell: pwsh
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_REQUIRED_FILES: ${{ inputs.required-files }}
+        INPUT_REQUIRED_README_SECTIONS: ${{ inputs.required-readme-sections }}
+        INPUT_FORBIDDEN_PATTERNS: ${{ inputs.forbidden-patterns }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
+        INPUT_REPORT_PATH: ${{ inputs.report-path }}
+      run: |
+        # Inputs are passed as environment variables rather than interpolated
+        # into this script, so a value containing quotes or a newline cannot
+        # change what runs here.
+        & "${{ github.action_path }}/scripts/Invoke-RepoStandardsCheck.ps1" `
+          -Path $env:INPUT_PATH `
+          -RequiredFile $env:INPUT_REQUIRED_FILES `
+          -RequiredReadmeSection $env:INPUT_REQUIRED_README_SECTIONS `
+          -ForbiddenPattern $env:INPUT_FORBIDDEN_PATTERNS `
+          -FailOnError $env:INPUT_FAIL_ON_ERROR `
+          -WriteJobSummary $env:INPUT_JOB_SUMMARY `
+          -ReportPath $env:INPUT_REPORT_PATH
