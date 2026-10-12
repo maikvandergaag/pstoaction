@@ -16,12 +16,33 @@ Invoke-Pester -Path ./tests -Output Detailed      # expect 33 passed
 #    - tests/Action.Contract.Tests.ps1
 #    - a finished Actions run showing the job summary
 
-# 3. Push a tag beforehand so you have a real release to point at
+# 3. Start the stage demo so a finished run is waiting for you
+#    Actions ▸ "Demo — the three stages" ▸ Run workflow ▸ repository: bad
+
+# 4. Push a tag beforehand so you have a real release to point at
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
 Pre-record or pre-run the workflow screenshots. Live Actions runs take 40
 seconds and kill the pacing.
+
+### The stage demo
+
+[`demo-stages.yml`](../.github/workflows/demo-stages.yml) runs all three
+stages against the same sample repository and writes the comparison to the job
+summary. It is the fastest way to land the whole argument in one screen, and
+it is what you come back to at 0:43.
+
+If the room has no network, or you would rather stay in the terminal:
+
+```powershell
+./scripts/Invoke-StageDemo.ps1              # sample-repos/bad
+./scripts/Invoke-StageDemo.ps1 -Sample good # all three pass
+./scripts/Invoke-StageDemo.ps1 -Stage 1     # just the stage you are on
+```
+
+The script prints the same comparison table as the workflow, so the slides
+and the demo always agree.
 
 ---
 
@@ -53,6 +74,9 @@ echo $LASTEXITCODE     # 0 — even though checks failed
 
 That `0` is the moment. The repository fails every rule and the pipeline is
 green.
+
+> Or run `./scripts/Invoke-StageDemo.ps1 -Stage 1`, which prints the same thing
+> with the exit code called out.
 
 ---
 
@@ -204,6 +228,19 @@ flip the default in `v2` → keep patching `v1`, with a date.
 
 Back to the opening question.
 
+Show the finished **Demo — the three stages** run you started before the
+session. The comparison table in the job summary is the whole talk on one
+screen:
+
+| Stage | Exit code | Pipeline | What the caller gets |
+| --- | :---: | :---: | --- |
+| Stage 1 | `0` | ✅ green | nothing machine-readable |
+| Stage 2 | `1` | ❌ red | a count, not the reasons |
+| Stage 3 | `1` | ❌ red | every failing check, named |
+
+> Same repository, three times. The script never got better at finding
+> problems — it got better at *telling you*.
+
 > You started with a script in a repository. You now have something with a
 > name, a version, a contract and tests. A team can write one line and trust
 > it:
@@ -222,7 +259,7 @@ Point at the repository URL. Everything demonstrated is in it and runs.
 
 | Problem | Fallback |
 | --- | --- |
-| No network | Everything except the workflows runs locally. Use screenshots for Actions runs. |
+| No network | Everything except the workflows runs locally. Run `./scripts/Invoke-StageDemo.ps1` instead of the stage-demo workflow, and use screenshots for Actions runs. |
 | Pester missing | `Install-Module Pester -Force -Scope CurrentUser` |
 | Wrong PowerShell | Needs 7+. `pwsh -v` before you start. |
 | Running behind | Drop the cross-platform matrix and the reusable-workflow example. Never drop the bug story or the versioning table. |

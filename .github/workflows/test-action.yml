@@ -1,0 +1,121 @@
+# Stage 3 proof #2: the ACTION is tested, not just the script.
+#
+# Unit tests prove the logic. These prove action.yml is wired correctly:
+# inputs arrive, outputs come back, and failure actually fails.
+
+name: Test action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  passes:
+    name: Passes on a good repository (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the action
+        id: check
+        uses: ./
+        with:
+          path: sample-repos/good
+          required-files: |
+            README.md
+            LICENSE
+            .gitignore
+          required-readme-sections: |
+            Usage
+            Contributing
+          report-path: reports/good.json
+
+      - name: Assert the contract
+        shell: pwsh
+        env:
+          RESULT: ${{ steps.check.outputs.result }}
+          TOTAL: ${{ steps.check.outputs.checks-total }}
+          FAILED: ${{ steps.check.outputs.checks-failed }}
+        run: |
+          if ($env:RESULT -ne 'passed') { throw "Expected result 'passed', got '$env:RESULT'." }
+          if ([int]$env:TOTAL -ne 5)    { throw "Expected 5 checks, got '$env:TOTAL'." }
+          if ([int]$env:FAILED -ne 0)   { throw "Expected 0 failures, got '$env:FAILED'." }
+          if (-not (Test-Path reports/good.json)) { throw 'The JSON report was not written.' }
+          Write-Host '✅ Outputs, exit code and report all behaved.'
+
+  fails:
+    name: Fails on a bad repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Testing that a quality gate fails correctly matters as much as
+      # testing that it passes. Most broken gates are broken by being
+      # silently green — which is exactly Stage 1's problem.
+      - name: Run the action
+        id: check
+        continue-on-error: true
+        uses: ./
+        with:
+          path: sample-repos/bad
+          required-files: |
+            README.md
+            LICENSE
+          required-readme-sections: |
+            Usage
+
+      - name: Assert that it failed, and said why
+        shell: pwsh
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+          RESULT: ${{ steps.check.outputs.result }}
+          FAILED: ${{ steps.check.outputs.checks-failed }}
+          REPORT: ${{ steps.check.outputs.report-json }}
+        run: |
+          if ($env:OUTCOME -ne 'failure') { throw "Expected the step to fail, outcome was '$env:OUTCOME'." }
+          if ($env:RESULT -ne 'failed')   { throw "Expected result 'failed', got '$env:RESULT'." }
+          if ([int]$env:FAILED -ne 2)     { throw "Expected 2 failures, got '$env:FAILED'." }
+
+          # Outputs are set even when the action fails — which is exactly
+          # when a caller needs them.
+          $report = $env:REPORT | ConvertFrom-Json
+          $names = @($report.Checks | Where-Object { -not $_.Passed } | ForEach-Object { $_.Name })
+          Write-Host "✅ Failed correctly on: $($names -join ', ')"
+
+  reports_without_failing:
+    name: Reports without failing
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # How you roll out a new rule to an organisation without breaking
+      # everyone on day one.
+      - name: Run the action in report-only mode
+        id: check
+        uses: ./
+        with:
+          path: sample-repos/bad
+          required-files: SECURITY.md
+          fail-on-error: 'false'
+
+      - name: Assert that it reported but stayed green
+        shell: pwsh
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+          RESULT: ${{ steps.check.outputs.result }}
+        run: |
+          if ($env:OUTCOME -ne 'success') { throw "Expected the step to succeed, outcome was '$env:OUTCOME'." }
+          if ($env:RESULT -ne 'failed')   { throw "Expected result 'failed', got '$env:RESULT'." }
+          Write-Host '✅ Reported a failure without failing the build.'
