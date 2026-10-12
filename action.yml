@@ -90,6 +90,7 @@ runs:
         INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
         INPUT_REPORT_PATH: ${{ inputs.report-path }}
       run: |
+        Write-Host "Running repository standards check..."
         & "${{ github.action_path }}/scripts/Invoke-RepoStandardsCheck.ps1" `
           -Path $env:INPUT_PATH `
           -RequiredFile $env:INPUT_REQUIRED_FILES `
