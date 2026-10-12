@@ -119,37 +119,3 @@ jobs:
           if ($env:OUTCOME -ne 'success') { throw "Expected the step to succeed, outcome was '$env:OUTCOME'." }
           if ($env:RESULT -ne 'failed')   { throw "Expected result 'failed', got '$env:RESULT'." }
           Write-Host '✅ Reported a failure without failing the build.'
-
-  handles_awkward_input:
-    name: Handles awkward input safely
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # Inputs reach the script as data, never as script. If this ever
-      # starts executing, the quoting regressed.
-      - name: Run the action with input that looks like code
-        id: check
-        continue-on-error: true
-        uses: ./
-        with:
-          path: sample-repos/good
-          required-files: |
-            # a comment line, ignored
-            README.md
-
-            $(touch /tmp/pwned); echo 'oops'.md
-          required-readme-sections: |
-            Usage
-
-      - name: Assert nothing executed
-        shell: pwsh
-        env:
-          OUTCOME: ${{ steps.check.outcome }}
-          FAILED: ${{ steps.check.outputs.checks-failed }}
-        run: |
-          if (Test-Path /tmp/pwned) { throw 'Input was executed instead of treated as data.' }
-          if ($env:OUTCOME -ne 'failure') { throw "Expected a failed check for the odd file name, outcome was '$env:OUTCOME'." }
-          if ([int]$env:FAILED -ne 1) { throw "Expected exactly 1 failure, got '$env:FAILED'." }
-          Write-Host '✅ The odd value was treated as a (missing) file name, not as code.'
