@@ -1,13 +1,5 @@
 #Requires -Version 7.0
 
-<#
-    Contract tests for the action entry point.
-
-    These do not test the checking logic again. They test the promises the
-    action makes to its consumers: exit codes, outputs and input parsing.
-    Those are the things that break people when you change them.
-#>
-
 BeforeAll {
     $script:EntryScript = Join-Path $PSScriptRoot '..' 'scripts' 'Invoke-RepoStandardsCheck.ps1'
 

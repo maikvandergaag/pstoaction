@@ -1,17 +1,5 @@
 #Requires -Version 7.0
 
-<#
-.SYNOPSIS
-    Checks a repository for required files and README sections.
-
-.DESCRIPTION
-    Stage 2 of the demo. The script now accepts parameters instead of
-    hard-coding its behaviour, and it sets a real exit code so a workflow
-    can fail on it.
-
-    It is still a single file doing everything: checking, formatting and
-    talking to GitHub. That is what Stage 3 untangles.
-#>
 [CmdletBinding()]
 param(
     [string]$Path = '.',

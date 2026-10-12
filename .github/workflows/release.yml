@@ -1,8 +1,3 @@
-# Stage 3 proof #3: a version consumers can trust.
-#
-# Tests run BEFORE the moving tags are repointed. Moving v1 onto untested
-# code ships a bug instantly to everyone who took your advice to use @v1.
-
 name: Release
 
 on:
@@ -80,8 +75,6 @@ jobs:
           ref: ${{ needs.verify.outputs.tag }}
           fetch-depth: 0
 
-      # v1.2.0 never moves. v1.2 and v1 are repointed at it, so a consumer
-      # on @v1 picks up compatible fixes without editing a workflow.
       - name: Repoint the moving tags
         env:
           TAG: ${{ needs.verify.outputs.tag }}

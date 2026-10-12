@@ -1,14 +1,3 @@
-# =====================================================================
-#  check-repo.ps1
-#
-#  "The script that got copied around."
-#
-#  Found in: team-alpha/infra, team-beta/webapp, platform/tooling,
-#            someone's Downloads folder, a Teams chat from 2021.
-#
-#  Nobody knows which copy is the newest one.
-# =====================================================================
-
 Write-Host "Checking repository standards..." -ForegroundColor Cyan
 
 # Hard-coded. Changing this means editing every copy, everywhere.

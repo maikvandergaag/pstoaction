@@ -2,7 +2,7 @@ name: Repo Standards Check
 description: >-
   Validates that a repository contains the files, README sections and
   conventions your organisation expects.
-author: your-org
+author: maikvandergaag
 
 branding:
   icon: check-circle
@@ -90,9 +90,6 @@ runs:
         INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
         INPUT_REPORT_PATH: ${{ inputs.report-path }}
       run: |
-        # Inputs are passed as environment variables rather than interpolated
-        # into this script, so a value containing quotes or a newline cannot
-        # change what runs here.
         & "${{ github.action_path }}/scripts/Invoke-RepoStandardsCheck.ps1" `
           -Path $env:INPUT_PATH `
           -RequiredFile $env:INPUT_REQUIRED_FILES `
