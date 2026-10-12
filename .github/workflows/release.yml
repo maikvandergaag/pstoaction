@@ -102,6 +102,8 @@ jobs:
             echo "| Tag | Points at | Moves again? |"
             echo "| --- | --- | --- |"
             echo "| \`$TAG\` | this commit | never |"
-            echo "| \`$MINOR\` | \`$TAG\` | on the next patch |"
-            echo "| \`$MAJOR\` | \`$TAG\` | on every compatible release |"
+            echo "| \`$MINOR\` | \`$TAG\` | on a release selected for this minor version |"
+            echo "| \`$MAJOR\` | \`$TAG\` | on a release selected for this major version |"
+            echo
+            echo "Compatibility is not checked by this workflow; maintainers are responsible for preserving the major-version contract."
           } >> "$GITHUB_STEP_SUMMARY"

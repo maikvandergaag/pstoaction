@@ -159,19 +159,21 @@ them.
 ## Versioning
 
 ```yaml
-uses: your-org/repo-standards-action@v1        # latest compatible (recommended)
+uses: your-org/repo-standards-action@v1        # latest release in the v1 series (recommended)
 uses: your-org/repo-standards-action@v1.2.0    # exact, never moves
 uses: your-org/repo-standards-action@a1b2c3d   # SHA-pinned
 ```
 
 `v1` and `v1.2` are moving tags, repointed by
-[`release.yml`](.github/workflows/release.yml) after the test suite passes.
+[`release.yml`](.github/workflows/release.yml) after its checks pass. The
+workflow validates the `vMAJOR.MINOR.PATCH` format, but does not determine
+whether a release is backward-compatible. Maintainers must preserve that
+contract before moving a major tag. Re-running the workflow manually for an
+older release tag also moves its matching aliases back to that release.
 
 The rule that matters: **if the same inputs produce a different result, it is
 a breaking change** — even when it feels like a bug fix.
 
-Full detail, including how to ship a breaking change without an outage:
-📄 [`docs/versioning.md`](docs/versioning.md)
 
 ---
 
