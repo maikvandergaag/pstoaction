@@ -39,6 +39,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+Write-Host "Initializing Repo Standards Check..."
+
 Import-Module (Join-Path $PSScriptRoot '..' 'src' 'RepoStandards' 'RepoStandards.psm1') -Force
 
 function ConvertFrom-ActionList {
